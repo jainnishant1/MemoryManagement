@@ -1,0 +1,6 @@
+Repo/
+exe
+*.o
+test.c
+test.o
+test
