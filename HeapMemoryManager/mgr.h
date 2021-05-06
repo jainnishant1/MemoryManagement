@@ -6,16 +6,6 @@
 
 typedef enum { MGR_TRUE, MGR_FALSE } mgr_bool_t;
 
-typedef struct _vpage_family {
-    char struct_name[MAX_STRUCT_NAME_LEN];
-    size_t struct_size;                 // uint32_t check
-} vpage_family_t;
-
-typedef struct _families_vpage {
-    struct _families_vpage* next;
-    vpage_family_t vpage_family[];      // FAM check, standardized in C99
-} families_vpage_t;
-
 #define MAX_FAMILIES_PER_VPAGE (VIRTUAL_PAGE_SIZE - sizeof(families_vpage_t*)) / sizeof(vpage_family_t)
 
 typedef struct _meta_block {
@@ -25,12 +15,43 @@ typedef struct _meta_block {
     struct _meta_block *prev, *next;
 } meta_block_t;
 
-#define FIELD_OFFSET(struct_name, field_name) (int)&(((struct_name*)0)->field_name)
+//Forward declarations to be used in struct  _vpage
+struct _vpage_family;
+
+typedef struct _vpage
+{
+    struct _vpage *next, *prev;
+    struct _vpage_family *page_family;
+    struct _meta_block meta_block;
+    char pages[];
+} vpage_t;
+
+typedef struct _vpage_family
+{
+    char struct_name[MAX_STRUCT_NAME_LEN];
+    size_t struct_size; // uint32_t check
+    vpage_t *first;
+} vpage_family_t;
+
+typedef struct _families_vpage
+{
+    struct _families_vpage *next;
+    vpage_family_t vpage_family[]; // FAM check, standardized in C99
+} families_vpage_t;
+
+#define FIELD_OFFSET(struct_name, field_name) (size_t)&(((struct_name*)0)->field_name)
 
 #define META_BLOCK_PAGE(meta_block_ptr) (void*)((char*) meta_block_ptr - meta_block_ptr->offset)
 
 #define NEXT_META_BLOCK_BY_SIZE(meta_block_ptr) \
         (meta_block_ptr*)((char*)(meta_block_ptr + 1) + meta_block_ptr->block_size)
+
+#define MGR_ALLOCATION_PREV_NEXT_UPDATE(meta_block_alloc_ptr, meta_block_free_ptr)           \
+    meta_block_free_ptr->prev = meta_block_alloc_ptr;             \
+    meta_block_free_ptr->next = meta_block_alloc_ptr->next; \
+    meta_block_alloc_ptr->next_block = meta_block_free_ptr;             \
+    if (meta_block_free_ptr->next)                                \
+    meta_block_free_ptr->next->prev = meta_block_free_ptr
 
 #define ITER_VPAGE_FAMILIES_BEGIN(families_vpage_ptr, cur_vpage_family) \
 {                                                                    \
@@ -40,5 +61,32 @@ typedef struct _meta_block {
     {               
 
 #define ITER_VPAGE_FAMILIES_END }}
+
+#define ITER_VPAGE_BEGIN(vpage_family_ptr,cur_vpage) \
+{                                                                               \
+    vpage_t *next = NULL;                                                       \
+    for(cur_vpage = vpage_family_ptr->first;cur_vpage;cur_vpage=next){    \
+        next = cur_vpage->next;
+
+#define ITER_VPAGE_END(vpage_family_ptr,cur_vpage) }}
+
+#define ITER_VPAGE_META_BLOCKS_BEGIN(vpage_ptr,cur_meta_block) \
+{                                                                                      \
+    meta_block_t *next = NULL;                                                         \
+    for(cur_meta_block = &vpage_ptr->meta_block;cur_meta_block;cur_meta_block = next){ \
+        next = cur_meta_block->next;
+
+#define ITER_VPAGE_META_BLOCKS_END(vpage_ptr, cur_meta_block) }}
+
+#define VPAGE_MARK_EMPTY(vpage_ptr)                                 \
+    vpage_ptr->meta_block.next = vpage_ptr->meta_block.prev = NULL; \
+    vpage_ptr->meta_block.is_free = MGR_TRUE;
+
+
+mgr_bool_t mgr_is_vpage_empty(vpage_t *vpage_ptr);
+
+vpage_t *request_new_data_vpage(vpage_family_t *vpage_family_ptr);
+
+void mgr_vpage_free_delete(vpage_t *vpage_ptr);
 
 #endif

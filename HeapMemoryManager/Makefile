@@ -4,10 +4,10 @@ CFLAGS=
 
 ODIR=obj
 
-DEPS = mgr.h memmgr.h
+DEPS = mgr.h heap.h memmgr.h 
 # DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-OBJ = mgr.o test.o
+OBJ = mgr.o heap.o test.o
 # OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 %.o: %.c $(DEPS)

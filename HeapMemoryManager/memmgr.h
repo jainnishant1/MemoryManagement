@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include "mgr.h"
+#include "heap.h"
 
 void mgr_init();
 
