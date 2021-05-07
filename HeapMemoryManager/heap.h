@@ -11,7 +11,7 @@ struct _heap_vpage;
 //     int a;
 //     struct _heap_node* heap_ptr;
 // } heap_data_t;
-typedef meta_block_t heap_data_t;
+typedef struct _meta_block heap_data_t;
 
 typedef int (*heap_cmp_f)(void*, void*);
 
