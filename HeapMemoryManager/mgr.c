@@ -146,7 +146,8 @@ static void mgr_insert_vpage_family_free_block_in_heap(vpage_family_t *page_fami
 
 mgr_bool_t mgr_is_vpage_empty(vpage_t *vpage_ptr)
 {
-    if(vpage_ptr->meta_block.prev==NULL && vpage_ptr->meta_block.next==NULL && vpage_ptr->meta_block.is_free==MGR_TRUE){
+    if (vpage_ptr->meta_block.prev == NULL && vpage_ptr->meta_block.is_free == MGR_TRUE && vpage_ptr->meta_block.next == NULL)
+    {
         return MGR_TRUE;
     }
     return MGR_FALSE;
@@ -161,22 +162,23 @@ vpage_t *request_new_data_vpage(vpage_family_t *vpage_family_ptr){
     vpage_t *new_page = mgr_allocate_vm_pages(1);
 
     VPAGE_MARK_EMPTY(new_page);
+    
+    new_page->next = new_page->prev = NULL;
 
     new_page->meta_block.data_block_size = mgr_size_free_data_block_vpage(1);
     new_page->meta_block.offset = FIELD_OFFSET(vpage_t,meta_block);
     new_page->meta_block.heap_ptr=NULL;
 
-    new_page->next = new_page->prev = NULL;
 
     new_page->page_family= vpage_family_ptr;
 
-    if(!vpage_family_ptr->first){
+    if(vpage_family_ptr->first==NULL){
         vpage_family_ptr->first = new_page;
         return new_page;
     }
 
-    new_page->next = vpage_family_ptr->first;
     vpage_family_ptr->first->prev = new_page;
+    new_page->next = vpage_family_ptr->first;
     vpage_family_ptr->first = new_page;
     return new_page;
 }
@@ -193,7 +195,7 @@ void mgr_vpage_free_delete(vpage_t *vpage_ptr){
         return;
     }
 
-    if(vpage_ptr->next){
+    if(vpage_ptr->next!=NULL){
         vpage_ptr->next->prev = vpage_ptr->prev;
     }
 
@@ -223,10 +225,10 @@ static mgr_bool_t mgr_split_and_allocate(vpage_family_t *vpage_family_ptr,meta_b
     }
 
     //Case 2: Soft Internal Fragmentation
-    if(remain>sizeof(meta_block_t)&&remain<(sizeof(meta_block_t)+vpage_family_ptr->struct_size)){
+    if((remain>sizeof(meta_block_t)&&remain<(sizeof(meta_block_t)+vpage_family_ptr->struct_size))||remain>=sizeof(meta_block_t)){
         meta_block_t *next_free_block = NEXT_META_BLOCK_BY_SIZE(free_block);
-        next_free_block->is_free = MGR_TRUE;
         next_free_block->data_block_size = remain - sizeof(meta_block_t);
+        next_free_block->is_free = MGR_TRUE;
         next_free_block->offset = free_block->offset + sizeof(meta_block_t)+free_block->data_block_size;
 
         next_free_block->heap_ptr = NULL; //check?????
@@ -240,17 +242,17 @@ static mgr_bool_t mgr_split_and_allocate(vpage_family_t *vpage_family_ptr,meta_b
         //Nothing
     }
 
-    else{
-        meta_block_t *next_free_block = NEXT_META_BLOCK_BY_SIZE(free_block);
-        next_free_block->is_free = MGR_TRUE;
-        next_free_block->data_block_size = remain - sizeof(meta_block_t);
-        next_free_block->offset = free_block->offset + sizeof(meta_block_t) + free_block->data_block_size;
+    // else{
+    //     meta_block_t *next_free_block = NEXT_META_BLOCK_BY_SIZE(free_block);
+    //     next_free_block->is_free = MGR_TRUE;
+    //     next_free_block->data_block_size = remain - sizeof(meta_block_t);
+    //     next_free_block->offset = free_block->offset + sizeof(meta_block_t) + free_block->data_block_size;
 
-        next_free_block->heap_ptr = NULL; //check?????
-        mgr_insert_vpage_family_free_block_in_heap(vpage_family_ptr, next_free_block);
+    //     next_free_block->heap_ptr = NULL; //check?????
+    //     mgr_insert_vpage_family_free_block_in_heap(vpage_family_ptr, next_free_block);
 
-        MGR_ALLOCATION_PREV_NEXT_UPDATE(free_block, next_free_block);
-    }
+    //     MGR_ALLOCATION_PREV_NEXT_UPDATE(free_block, next_free_block);
+    // }
 
     return MGR_TRUE;
 }
@@ -291,7 +293,7 @@ void *xcalloc(char *struct_name,int count){
     }
 
     if(vpage_family_ptr->struct_size * count > mgr_size_free_data_block_vpage(1)){
-        fprintf(stderr, "Memory Requested Exceeds Page size\n");
+        fprintf(stderr, "Error: Memory Requested Exceeds Page size\n");
         return NULL;
     }
 
@@ -303,4 +305,56 @@ void *xcalloc(char *struct_name,int count){
     }
 
     return NULL;
+}
+
+static void mgr_free_allocated_data_block(meta_block_t *allocated_block_ptr){
+
+    vpage_t *vpage = (vpage_t *)META_BLOCK_PAGE(allocated_block_ptr);
+
+    meta_block_t *priority_queue_block = NULL;
+
+    allocated_block_ptr->is_free = MGR_TRUE;
+
+    priority_queue_block = allocated_block_ptr;
+
+    if(allocated_block_ptr->next==NULL){
+        char *first = (char *)(allocated_block_ptr+1) + allocated_block_ptr->data_block_size;
+        char *second = (char *)((char *)vpage + VIRTUAL_PAGE_SIZE);
+
+        allocated_block_ptr->data_block_size += ((int)((unsigned long)second - (unsigned long)first));
+    }
+    else{
+        meta_block_t *next_meta_block = NEXT_META_BLOCK_BY_SIZE(allocated_block_ptr);
+        int hard_fragmented_size = (int)((unsigned long)allocated_block_ptr->next -(unsigned long)next_meta_block);
+
+        allocated_block_ptr->data_block_size +=hard_fragmented_size;
+    }
+
+    if(allocated_block_ptr->next!=NULL && allocated_block_ptr->next->is_free==MGR_TRUE){
+        mgr_merge_free_block(allocated_block_ptr,allocated_block_ptr->next);
+        priority_queue_block = allocated_block_ptr;
+    }
+    if (allocated_block_ptr->prev != NULL && allocated_block_ptr->prev->is_free == MGR_TRUE){
+        mgr_merge_free_block(allocated_block_ptr->prev,allocated_block_ptr);
+        priority_queue_block = allocated_block_ptr->prev;
+    }
+
+    if(mgr_is_vpage_empty(vpage)==MGR_TRUE){
+        mgr_vpage_free_delete(vpage);
+        return;
+    }
+
+    heap_insert(&vpage->page_family->heap_head,(void *)priority_queue_block);
+
+}
+
+void *xfree(void *data_block_ptr){
+    meta_block_t *meta_block_ptr = (meta_block_t *)((char *)data_block_ptr - sizeof(meta_block_t));
+
+    if(meta_block_ptr->is_free==MGR_TRUE){
+        fprintf(stderr, "Error: Only allocated blocks can be freed\n");
+        return NULL;
+    }
+
+    mgr_free_allocated_data_block(meta_block_ptr);
 }

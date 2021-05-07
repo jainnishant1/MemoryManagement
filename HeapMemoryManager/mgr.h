@@ -45,7 +45,7 @@ typedef struct _families_vpage
 
 #define FIELD_OFFSET(struct_name, field_name) (size_t)&(((struct_name*)0)->field_name)
 
-#define META_BLOCK_PAGE(meta_block_ptr) (void*)((char*) meta_block_ptr - meta_block_ptr->offset)
+#define META_BLOCK_PAGE(meta_block_ptr) ((void*)((char*) meta_block_ptr - meta_block_ptr->offset))
 
 #define NEXT_META_BLOCK_BY_SIZE(meta_block_ptr) \
         (meta_block_t *)((char*)(meta_block_ptr + 1) + meta_block_ptr->data_block_size)
