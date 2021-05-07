@@ -4,6 +4,8 @@
 #include <sys/mman.h>
 #include <stdlib.h>     // only for exit()
 #include "mgr.h"
+#include "css.h"
+#include <assert.h>
 
 static families_vpage_t* first_families_vpage = NULL;
 size_t VIRTUAL_PAGE_SIZE = 0;
@@ -283,7 +285,7 @@ static meta_block_t *mgr_allocate_free_block(vpage_family_t *vpage_family_ptr,si
 
 }
 
-void *xcalloc(char *struct_name,int count){
+void *xmalloc(char *struct_name,int count){
 
     vpage_family_t *vpage_family_ptr = mgr_lookup_page_family(struct_name);
 
@@ -357,4 +359,135 @@ void *xfree(void *data_block_ptr){
     }
 
     mgr_free_allocated_data_block(meta_block_ptr);
+}
+
+void mm_print_vm_page_details(vpage_t *vm_page)
+{
+
+    printf("\t\t next = %p, prev = %p\n", vm_page->next, vm_page->prev);
+    printf("\t\t page family = %s\n", vm_page->page_family->struct_name);
+
+    size_t j = 0;
+    meta_block_t *curr;
+    ITER_VPAGE_META_BLOCKS_BEGIN(vm_page, curr)
+    {
+
+        printf("\t\t\t%-14p Block %-3u %s  block_size = %-6u  "
+               "offset = %-6u  prev = %-14p  next = %p\n",
+               curr,
+               j++, curr->is_free == MGR_TRUE ? "FREED" : "ALLOCATED",
+               curr->data_block_size, curr->offset,
+               curr->prev,
+               curr->next);
+    }
+    ITER_VPAGE_META_BLOCKS_END(vm_page, curr);
+}
+
+void mm_print_block_usage()
+{
+
+    vpage_t *vm_page_curr;
+    vpage_family_t *vm_page_family_curr;
+    meta_block_t *block_meta_data_curr;
+    size_t total_block_count, free_block_count,
+        occupied_block_count;
+    size_t application_memory_usage;
+
+    ITER_VPAGE_FAMILIES_BEGIN(first_families_vpage, vm_page_family_curr)
+    {
+
+        total_block_count = 0;
+        free_block_count = 0;
+        application_memory_usage = 0;
+        occupied_block_count = 0;
+        ITER_VPAGE_BEGIN(vm_page_family_curr, vm_page_curr)
+        {
+
+            ITER_VPAGE_META_BLOCKS_BEGIN(vm_page_curr, block_meta_data_curr)
+            {
+
+                total_block_count++;
+
+                /*Sanity Checks*/
+                if (block_meta_data_curr->is_free == MGR_FALSE)
+                {
+                    assert(block_meta_data_curr->heap_ptr == NULL);
+                }
+                if (block_meta_data_curr->is_free == MGR_TRUE)
+                {
+                    assert(block_meta_data_curr->heap_ptr != NULL);
+                }
+
+                if (block_meta_data_curr->is_free == MGR_TRUE)
+                {
+                    free_block_count++;
+                }
+                else
+                {
+                    application_memory_usage +=
+                        block_meta_data_curr->data_block_size +
+                        sizeof(meta_block_t);
+                    occupied_block_count++;
+                }
+            }
+            ITER_VPAGE_META_BLOCKS_END(vm_page_curr, block_meta_data_curr);
+        }
+        ITER_VPAGE_END(vm_page_family_curr, vm_page_curr);
+
+        printf("%-20s   TBC : %-4u    FBC : %-4u    OBC : %-4u AppMemUsage : %u\n",
+               vm_page_family_curr->struct_name, total_block_count,
+               free_block_count, occupied_block_count, application_memory_usage);
+    }
+    ITER_VPAGE_FAMILIES_END(first_families_vpage, vm_page_family_curr);
+}
+
+void mm_print_memory_usage(char *struct_name)
+{
+
+    size_t i = 0;
+    vpage_t *vm_page = NULL;
+    vpage_family_t *vm_page_family_curr;
+    size_t number_of_struct_families = 0;
+    size_t cumulative_vm_pages_claimed_from_kernel = 0;
+
+    printf("\nPage Size = %zu Bytes\n", VIRTUAL_PAGE_SIZE);
+
+    ITER_VPAGE_FAMILIES_BEGIN(first_families_vpage, vm_page_family_curr)
+    {
+
+        if (struct_name)
+        {
+            if (strncmp(struct_name, vm_page_family_curr->struct_name,
+                        strlen(vm_page_family_curr->struct_name)))
+            {
+                continue;
+            }
+        }
+
+        number_of_struct_families++;
+
+        printf(GREEN_COLOR "vm_page_family : %s, struct size = %u\n" RESET_COLOR,
+               vm_page_family_curr->struct_name,
+               vm_page_family_curr->struct_size);
+        i = 0;
+
+        ITER_VPAGE_BEGIN(vm_page_family_curr, vm_page)
+        {
+
+            cumulative_vm_pages_claimed_from_kernel++;
+            mm_print_vm_page_details(vm_page);
+        }
+        ITER_VPAGE_END(vm_page_family_curr, vm_page);
+        printf("\n");
+    }
+    ITER_VPAGE_FAMILIES_END(first_families_vpage, vm_page_family_curr);
+
+    printf(MAGENTA_COLOR "# Of VM Pages in Use : %u (%lu Bytes)\n" RESET_COLOR,
+           cumulative_vm_pages_claimed_from_kernel,
+           VIRTUAL_PAGE_SIZE * cumulative_vm_pages_claimed_from_kernel);
+
+    float memory_app_use_to_total_memory_ratio = 0.0;
+
+    printf("Total Memory being used by Memory Manager = %lu Bytes\n",
+           cumulative_vm_pages_claimed_from_kernel * VIRTUAL_PAGE_SIZE);
 }

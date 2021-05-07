@@ -7,7 +7,8 @@
 
 void mgr_init();
 
-void *xcalloc(char *struct_name, int count);
+void *xmalloc(char *struct_name, int count);
+void xfree(void *ptr);
 
 void mgr_register_page_family(char* struct_name, size_t struct_size);
 
@@ -15,7 +16,13 @@ void mgr_register_page_family(char* struct_name, size_t struct_size);
 
 void mgr_print_reg_page_families();
 #define XMALLOC(struct_name,units) \
-    (xcalloc(#struct_name, units))
+    (xmalloc(#struct_name, units))
+#define XFREE(ptr) \
+    (xfree(ptr))
 vpage_family_t* mgr_lookup_page_family(char* struct_name);
+
+void mm_print_memory_usage(char *struct_name);
+void mm_print_registered_page_families();
+void mm_print_block_usage();
 
 #endif
