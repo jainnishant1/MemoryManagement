@@ -177,6 +177,7 @@ vpage_t *request_new_data_vpage(vpage_family_t *vpage_family_ptr){
 
     new_page->next = vpage_family_ptr->first;
     vpage_family_ptr->first->prev = new_page;
+    vpage_family_ptr->first = new_page;
     return new_page;
 }
 
@@ -198,4 +199,108 @@ void mgr_vpage_free_delete(vpage_t *vpage_ptr){
 
     vpage_ptr->prev->next = vpage_ptr->next;
     mgr_free_vm_pages((void *)vpage_ptr,1);
+}
+
+static mgr_bool_t mgr_split_and_allocate(vpage_family_t *vpage_family_ptr,meta_block_t *free_block, size_t size){
+    if(free_block->is_free==MGR_FALSE){
+        fprintf(stderr, "Error: Only free blocks can be splitted\n");
+        exit(1);
+    }
+
+    if(free_block->data_block_size<size){
+        return MGR_FALSE;
+    }
+
+    size_t remain = free_block->data_block_size - size;
+    free_block->is_free = MGR_FALSE;
+    free_block->data_block_size = size;
+
+    heap_remove(&vpage_family_ptr->heap_head,(void *)free_block);
+
+    //CASE 1: remain = 0;
+    if(!remain){
+        return MGR_TRUE;
+    }
+
+    //Case 2: Soft Internal Fragmentation
+    if(remain>sizeof(meta_block_t)&&remain<(sizeof(meta_block_t)+vpage_family_ptr->struct_size)){
+        meta_block_t *next_free_block = NEXT_META_BLOCK_BY_SIZE(free_block);
+        next_free_block->is_free = MGR_TRUE;
+        next_free_block->data_block_size = remain - sizeof(meta_block_t);
+        next_free_block->offset = free_block->offset + sizeof(meta_block_t)+free_block->data_block_size;
+
+        next_free_block->heap_ptr = NULL; //check?????
+        mgr_insert_vpage_family_free_block_in_heap(vpage_family_ptr,next_free_block);
+        
+        MGR_ALLOCATION_PREV_NEXT_UPDATE(free_block,next_free_block);
+    }
+
+    //Case 3: Hard Internal Fragmentation
+    else if(remain<sizeof(meta_block_t)){
+        //Nothing
+    }
+
+    else{
+        meta_block_t *next_free_block = NEXT_META_BLOCK_BY_SIZE(free_block);
+        next_free_block->is_free = MGR_TRUE;
+        next_free_block->data_block_size = remain - sizeof(meta_block_t);
+        next_free_block->offset = free_block->offset + sizeof(meta_block_t) + free_block->data_block_size;
+
+        next_free_block->heap_ptr = NULL; //check?????
+        mgr_insert_vpage_family_free_block_in_heap(vpage_family_ptr, next_free_block);
+
+        MGR_ALLOCATION_PREV_NEXT_UPDATE(free_block, next_free_block);
+    }
+
+    return MGR_TRUE;
+}
+
+static meta_block_t *mgr_allocate_free_block(vpage_family_t *vpage_family_ptr,size_t size){
+
+    meta_block_t *largest = (meta_block_t *)heap_front(&vpage_family_ptr->heap_head);
+
+
+    if(largest==NULL||largest->data_block_size<size){
+        vpage_t *new_page = request_new_data_vpage(vpage_family_ptr);
+
+        mgr_insert_vpage_family_free_block_in_heap(vpage_family_ptr,&new_page->meta_block);
+
+        if(mgr_split_and_allocate(vpage_family_ptr,&new_page->meta_block,size)==MGR_TRUE){
+            return &new_page->meta_block;
+        }
+        return NULL;
+    }
+
+    if(largest){
+        if (mgr_split_and_allocate(vpage_family_ptr, largest, size) == MGR_TRUE){
+            return largest;
+        }
+    }
+
+    return NULL;
+
+}
+
+void *xcalloc(char *struct_name,int count){
+
+    vpage_family_t *vpage_family_ptr = mgr_lookup_page_family(struct_name);
+
+    if(vpage_family_ptr==NULL){
+        fprintf(stderr, "Error: Structure %s is not registered\n",struct_name);
+        return NULL;
+    }
+
+    if(vpage_family_ptr->struct_size * count > mgr_size_free_data_block_vpage(1)){
+        fprintf(stderr, "Memory Requested Exceeds Page size\n");
+        return NULL;
+    }
+
+    meta_block_t *free_block = mgr_allocate_free_block(vpage_family_ptr, vpage_family_ptr->struct_size * count);
+
+    if(free_block!=NULL){
+        memset((char *)(free_block+1),0,free_block->data_block_size);
+        return (void *)(free_block+1);
+    }
+
+    return NULL;
 }

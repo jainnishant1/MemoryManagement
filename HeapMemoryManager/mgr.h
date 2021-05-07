@@ -48,12 +48,12 @@ typedef struct _families_vpage
 #define META_BLOCK_PAGE(meta_block_ptr) (void*)((char*) meta_block_ptr - meta_block_ptr->offset)
 
 #define NEXT_META_BLOCK_BY_SIZE(meta_block_ptr) \
-        (meta_block_ptr*)((char*)(meta_block_ptr + 1) + meta_block_ptr->block_size)
+        (meta_block_t *)((char*)(meta_block_ptr + 1) + meta_block_ptr->data_block_size)
 
 #define MGR_ALLOCATION_PREV_NEXT_UPDATE(meta_block_alloc_ptr, meta_block_free_ptr)           \
     meta_block_free_ptr->prev = meta_block_alloc_ptr;             \
     meta_block_free_ptr->next = meta_block_alloc_ptr->next; \
-    meta_block_alloc_ptr->next_block = meta_block_free_ptr;             \
+    meta_block_alloc_ptr->next = meta_block_free_ptr;             \
     if (meta_block_free_ptr->next)                                \
     meta_block_free_ptr->next->prev = meta_block_free_ptr
 
