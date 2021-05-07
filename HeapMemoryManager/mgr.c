@@ -8,6 +8,18 @@
 static families_vpage_t* first_families_vpage = NULL;
 size_t VIRTUAL_PAGE_SIZE = 0;
 
+int comparator_for_heap(void *a,void *b){
+    meta_block_t *first = (meta_block_t *)a;
+    meta_block_t *second = (meta_block_t *)b;
+    if(first->data_block_size>second->data_block_size){
+        return -1;
+    }
+    else if (first->data_block_size == second->data_block_size){
+        return 0;
+    }
+    return 1;
+}
+
 void mgr_init() {
     VIRTUAL_PAGE_SIZE = getpagesize();
     printf("Virtual page size = %lu bytes\n", VIRTUAL_PAGE_SIZE);
@@ -46,6 +58,8 @@ void mgr_register_page_family(char* struct_name, size_t struct_size) {
         first_families_vpage->next = NULL;
         first_families_vpage->vpage_family[0].struct_size = struct_size;
         strncpy(first_families_vpage->vpage_family[0].struct_name, struct_name, MAX_STRUCT_NAME_LEN);
+        first_families_vpage->vpage_family[0].first=NULL;
+        init_heap(&first_families_vpage->vpage_family[0].heap_head, &comparator_for_heap);
         return;
     }
 
@@ -69,7 +83,8 @@ void mgr_register_page_family(char* struct_name, size_t struct_size) {
     // cur_vpage_family points to the first empty location in the correct page for families
     cur_vpage_family->struct_size = struct_size;
     strncpy(cur_vpage_family->struct_name, struct_name, MAX_STRUCT_NAME_LEN);
-    // cur_vpage_family->first_page = NULL;     // check
+    cur_vpage_family->first = NULL;
+    init_heap(&cur_vpage_family->heap_head, &comparator_for_heap);
 }
 
 void mgr_print_reg_page_families() {
@@ -121,6 +136,14 @@ static void mgr_merge_free_block(meta_block_t *first, meta_block_t *second){
     }
 }
 
+static void mgr_insert_vpage_family_free_block_in_heap(vpage_family_t *page_family_ptr,meta_block_t *free_block_ptr){
+    if(free_block_ptr->is_free==MGR_FALSE){
+        fprintf(stderr, "Error: Only free blocks can be inserted in heap\n");
+        exit(1);
+    }
+    heap_insert(&page_family_ptr->heap_head,(void *)free_block_ptr);
+}
+
 mgr_bool_t mgr_is_vpage_empty(vpage_t *vpage_ptr)
 {
     if(vpage_ptr->meta_block.prev==NULL && vpage_ptr->meta_block.next==NULL && vpage_ptr->meta_block.is_free==MGR_TRUE){
@@ -141,6 +164,7 @@ vpage_t *request_new_data_vpage(vpage_family_t *vpage_family_ptr){
 
     new_page->meta_block.data_block_size = mgr_size_free_data_block_vpage(1);
     new_page->meta_block.offset = FIELD_OFFSET(vpage_t,meta_block);
+    new_page->meta_block.heap_ptr=NULL;
 
     new_page->next = new_page->prev = NULL;
 

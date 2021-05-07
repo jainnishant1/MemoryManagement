@@ -34,6 +34,7 @@ typedef struct _vpage_family
     char struct_name[MAX_STRUCT_NAME_LEN];
     size_t struct_size; // uint32_t check
     vpage_t *first;
+    heap_t heap_head;
 } vpage_family_t;
 
 typedef struct _families_vpage
