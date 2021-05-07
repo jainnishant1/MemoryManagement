@@ -2,9 +2,11 @@
 #define MGR_H
 
 #include <stdio.h>                      // for size_t
+#include "heap.h"
 #define MAX_STRUCT_NAME_LEN 32
 
 typedef enum { MGR_TRUE, MGR_FALSE } mgr_bool_t;
+extern size_t VIRTUAL_PAGE_SIZE;
 
 #define MAX_FAMILIES_PER_VPAGE (VIRTUAL_PAGE_SIZE - sizeof(families_vpage_t*)) / sizeof(vpage_family_t)
 
@@ -12,6 +14,7 @@ typedef struct _meta_block {
     size_t data_block_size;
     size_t offset;
     mgr_bool_t is_free;
+    heap_node_t* heap_ptr;
     struct _meta_block *prev, *next;
 } meta_block_t;
 
@@ -82,6 +85,9 @@ typedef struct _families_vpage
     vpage_ptr->meta_block.next = vpage_ptr->meta_block.prev = NULL; \
     vpage_ptr->meta_block.is_free = MGR_TRUE;
 
+void* mgr_allocate_vm_pages(int count);
+
+void mgr_free_vm_pages(void* pages, int count);
 
 mgr_bool_t mgr_is_vpage_empty(vpage_t *vpage_ptr);
 

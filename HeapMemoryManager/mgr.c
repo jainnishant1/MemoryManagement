@@ -6,14 +6,14 @@
 #include "mgr.h"
 
 static families_vpage_t* first_families_vpage = NULL;
-static size_t VIRTUAL_PAGE_SIZE = 0;
+size_t VIRTUAL_PAGE_SIZE = 0;
 
 void mgr_init() {
     VIRTUAL_PAGE_SIZE = getpagesize();
     printf("Virtual page size = %lu bytes\n", VIRTUAL_PAGE_SIZE);
 }
 
-static void* mgr_allocate_vm_pages(int count) {
+void* mgr_allocate_vm_pages(int count) {
     size_t nbytes = count * VIRTUAL_PAGE_SIZE;
     char* pages = mmap(0, nbytes,
                        PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -26,7 +26,7 @@ static void* mgr_allocate_vm_pages(int count) {
     return (void*) pages;
 }
 
-static void mgr_free_vm_pages(void* pages, int count) {
+void mgr_free_vm_pages(void* pages, int count) {
     int rval = munmap(pages, count * VIRTUAL_PAGE_SIZE);
     if(rval) fprintf(stderr, "Error: unable to free the desired virtual pages\n");
 }
