@@ -25,6 +25,7 @@ typedef struct _vpage
 {
     struct _vpage *next, *prev;
     struct _vpage_family *page_family;
+    int count;
     struct _meta_block meta_block;
     char pages[];
 } vpage_t;
@@ -92,7 +93,7 @@ void mgr_free_vm_pages(void* pages, int count);
 
 mgr_bool_t mgr_is_vpage_empty(vpage_t *vpage_ptr);
 
-vpage_t *request_new_data_vpage(vpage_family_t *vpage_family_ptr);
+vpage_t *request_new_data_vpage(vpage_family_t *vpage_family_ptr, int count);
 
 void mgr_vpage_free_delete(vpage_t *vpage_ptr);
 

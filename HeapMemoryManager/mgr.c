@@ -160,17 +160,25 @@ static inline size_t mgr_size_free_data_block_vpage(int count){
     return (size_t)((VIRTUAL_PAGE_SIZE * count) - FIELD_OFFSET(vpage_t,pages));
 }
 
-vpage_t *request_new_data_vpage(vpage_family_t *vpage_family_ptr){
-    vpage_t *new_page = mgr_allocate_vm_pages(1);
+static inline int mgr_minimum_data_vpages_required(size_t size) {
+    size_t capacity = VIRTUAL_PAGE_SIZE - FIELD_OFFSET(vpage_t,pages);
+    if(size <= capacity) return 1;
+    size -= capacity;
+    if(size % VIRTUAL_PAGE_SIZE == 0) return size / VIRTUAL_PAGE_SIZE + 1;
+    return size / VIRTUAL_PAGE_SIZE + 2;
+}
+
+vpage_t *request_new_data_vpage(vpage_family_t *vpage_family_ptr, int count){
+    vpage_t *new_page = mgr_allocate_vm_pages(count);
 
     VPAGE_MARK_EMPTY(new_page);
     
     new_page->next = new_page->prev = NULL;
 
-    new_page->meta_block.data_block_size = mgr_size_free_data_block_vpage(1);
+    new_page->meta_block.data_block_size = mgr_size_free_data_block_vpage(count);
     new_page->meta_block.offset = FIELD_OFFSET(vpage_t,meta_block);
     new_page->meta_block.heap_ptr=NULL;
-
+    new_page->count = count;
 
     new_page->page_family= vpage_family_ptr;
 
@@ -193,7 +201,7 @@ void mgr_vpage_free_delete(vpage_t *vpage_ptr){
             vpage_ptr->next->prev = NULL;
         }
         vpage_ptr->next = vpage_ptr->prev=NULL;
-        mgr_free_vm_pages((void *)vpage_ptr,1);
+        mgr_free_vm_pages((void *)vpage_ptr,vpage_ptr->count);
         return;
     }
 
@@ -202,7 +210,7 @@ void mgr_vpage_free_delete(vpage_t *vpage_ptr){
     }
 
     vpage_ptr->prev->next = vpage_ptr->next;
-    mgr_free_vm_pages((void *)vpage_ptr,1);
+    mgr_free_vm_pages((void *)vpage_ptr,vpage_ptr->count);
 }
 
 static mgr_bool_t mgr_split_and_allocate(vpage_family_t *vpage_family_ptr,meta_block_t *free_block, size_t size){
@@ -263,9 +271,11 @@ static meta_block_t *mgr_allocate_free_block(vpage_family_t *vpage_family_ptr,si
 
     meta_block_t *largest = (meta_block_t *)heap_front(&vpage_family_ptr->heap_head);
 
-
     if(largest==NULL||largest->data_block_size<size){
-        vpage_t *new_page = request_new_data_vpage(vpage_family_ptr);
+
+        int count = mgr_minimum_data_vpages_required(size);
+
+        vpage_t *new_page = request_new_data_vpage(vpage_family_ptr, count);
 
         mgr_insert_vpage_family_free_block_in_heap(vpage_family_ptr,&new_page->meta_block);
 
@@ -294,10 +304,10 @@ void *xmalloc(char *struct_name,int count){
         return NULL;
     }
 
-    if(vpage_family_ptr->struct_size * count > mgr_size_free_data_block_vpage(1)){
-        fprintf(stderr, "Error: Memory Requested Exceeds Page size\n");
-        return NULL;
-    }
+    // if(vpage_family_ptr->struct_size * count > mgr_size_free_data_block_vpage(1)){
+    //     fprintf(stderr, "Error: Memory Requested Exceeds Page size\n");
+    //     return NULL;
+    // }
 
     meta_block_t *free_block = mgr_allocate_free_block(vpage_family_ptr, vpage_family_ptr->struct_size * count);
 
@@ -321,7 +331,7 @@ static void mgr_free_allocated_data_block(meta_block_t *allocated_block_ptr){
 
     if(allocated_block_ptr->next==NULL){
         char *first = (char *)(allocated_block_ptr+1) + allocated_block_ptr->data_block_size;
-        char *second = (char *)((char *)vpage + VIRTUAL_PAGE_SIZE);
+        char *second = (char *)((char *)vpage + vpage->count * VIRTUAL_PAGE_SIZE);
 
         allocated_block_ptr->data_block_size += ((int)((unsigned long)second - (unsigned long)first));
     }
@@ -368,6 +378,7 @@ void mm_print_vm_page_details(vpage_t *vm_page)
 
     printf("\t\t next = %p, prev = %p\n", vm_page->next, vm_page->prev);
     printf("\t\t page family = %s\n", vm_page->page_family->struct_name);
+    printf("\t\t number of contiguous vm pages = %d (%lu bytes)\n", vm_page->count, vm_page->count*VIRTUAL_PAGE_SIZE);
 
     size_t j = 0;
     meta_block_t *curr;
@@ -498,7 +509,7 @@ void mm_print_memory_usage(char *struct_name)
         ITER_VPAGE_BEGIN(vm_page_family_curr, vm_page)
         {
 
-            cumulative_vm_pages_claimed_from_kernel++;
+            cumulative_vm_pages_claimed_from_kernel += vm_page->count;
             mm_print_vm_page_details(vm_page);
         }
         ITER_VPAGE_END(vm_page_family_curr, vm_page);
