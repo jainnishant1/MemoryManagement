@@ -8,7 +8,7 @@
 void mgr_init();
 
 void *xmalloc(char *struct_name, int count);
-void xfree(void *ptr);
+int xfree(void *ptr);
 
 void mgr_register_page_family(char* struct_name, size_t struct_size);
 

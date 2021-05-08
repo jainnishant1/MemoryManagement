@@ -362,31 +362,32 @@ static void mgr_free_allocated_data_block(meta_block_t *allocated_block_ptr){
 
 }
 
-void *xfree(void *data_block_ptr){
+int xfree(void *data_block_ptr){
     meta_block_t *meta_block_ptr = (meta_block_t *)((char *)data_block_ptr - sizeof(meta_block_t));
 
     if(meta_block_ptr->is_free==MGR_TRUE){
         fprintf(stderr, "Error: Only allocated blocks can be freed\n");
-        return NULL;
+        return -1;
     }
 
     mgr_free_allocated_data_block(meta_block_ptr);
+    return 0;
 }
 
 void mm_print_vm_page_details(vpage_t *vm_page)
 {
 
-    printf("\t\t next = %p, prev = %p\n", vm_page->next, vm_page->prev);
-    printf("\t\t page family = %s\n", vm_page->page_family->struct_name);
-    printf("\t\t number of contiguous vm pages = %d (%lu bytes)\n", vm_page->count, vm_page->count*VIRTUAL_PAGE_SIZE);
+    printf("\tnext_page = %p, prev_page = %p\n", vm_page->next, vm_page->prev);
+    printf("\tPage family = %s\n", vm_page->page_family->struct_name);
+    printf("\tNumber of contiguous vm pages = %d (%lu bytes)\n", vm_page->count, vm_page->count*VIRTUAL_PAGE_SIZE);
 
     size_t j = 0;
     meta_block_t *curr;
     ITER_VPAGE_META_BLOCKS_BEGIN(vm_page, curr)
     {
 
-        printf("\t\t\t%-14p Block %-3lu %s  block_size = %-6lu  "
-               "offset = %-6lu  prev = %-14p  next = %p\n",
+        printf("\t   %-14p Block %-3lu %s  block_size = %-6lu  "
+               "offset = %-6lu  prev_block = %-14p  next_block = %p\n",
                curr+1,          // TODO: revert
                j++, curr->is_free == MGR_TRUE ? "F R E E D" : "ALLOCATED",
                curr->data_block_size, curr->offset,
@@ -394,6 +395,7 @@ void mm_print_vm_page_details(vpage_t *vm_page)
                curr->next ? curr->next+1 : curr->next);
     }
     ITER_VPAGE_META_BLOCKS_END(vm_page, curr);
+    printf("\n");
 }
 
 void mm_print_block_usage()
@@ -501,15 +503,16 @@ void mm_print_memory_usage(char *struct_name)
 
         number_of_struct_families++;
 
-        printf(GREEN_COLOR "vm_page_family : %s, struct size = %lu\n" RESET_COLOR,
+        printf(YELLOW_COLOR "vm_page_family : %s, struct size = %lu\n" RESET_COLOR,
                vm_page_family_curr->struct_name,
                vm_page_family_curr->struct_size);
         i = 0;
-
+        int page_count = 0;
         ITER_VPAGE_BEGIN(vm_page_family_curr, vm_page)
         {
 
             cumulative_vm_pages_claimed_from_kernel += vm_page->count;
+            printf(RED_COLOR"\tVM Page %d:\n" RESET_COLOR,page_count++);
             mm_print_vm_page_details(vm_page);
         }
         ITER_VPAGE_END(vm_page_family_curr, vm_page);

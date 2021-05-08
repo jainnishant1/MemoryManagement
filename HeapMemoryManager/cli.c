@@ -131,8 +131,8 @@ int process_cmd(char* tokens[]) {
             return 0;
         }
         void* ptr = (void*) strtol(tokens[2], NULL, 0);
-        printf("%p\n", ptr);
-        xfree(ptr);
+        int status = xfree(ptr);
+        if(status == 0)printf("Memory freed at address: %p\n", ptr);
         return 0;
     } else if(strcmp(tokens[1], "show") == 0) {
         if(tokens[2] == NULL) {
