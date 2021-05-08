@@ -385,8 +385,8 @@ void mm_print_vm_page_details(vpage_t *vm_page)
     ITER_VPAGE_META_BLOCKS_BEGIN(vm_page, curr)
     {
 
-        printf("\t\t\t%-14p Block %-3u %s  block_size = %-6u  "
-               "offset = %-6u  prev = %-14p  next = %p\n",
+        printf("\t\t\t%-14p Block %-3lu %s  block_size = %-6lu  "
+               "offset = %-6lu  prev = %-14p  next = %p\n",
                curr+1,          // TODO: revert
                j++, curr->is_free == MGR_TRUE ? "FREED" : "ALLOCATED",
                curr->data_block_size, curr->offset,
@@ -469,7 +469,7 @@ void mm_print_block_usage()
         }
         ITER_VPAGE_END(vm_page_family_curr, vm_page_curr);
 
-        printf("%-20s   TBC : %-4u    FBC : %-4u    OBC : %-4u    SOFT_FRAG : %-4u    HARD_FRAG : %-4u AppMemUsage : %u\n",
+        printf("%-20s   TBC : %-4lu    FBC : %-4lu    OBC : %-4lu    SOFT_FRAG : %-4lu    HARD_FRAG : %-4lu AppMemUsage : %lu\n",
                vm_page_family_curr->struct_name, total_block_count,
                free_block_count, occupied_block_count, total_soft_fragmented_memory, total_hard_fragmented_memory, application_memory_usage);
     }
@@ -501,7 +501,7 @@ void mm_print_memory_usage(char *struct_name)
 
         number_of_struct_families++;
 
-        printf(GREEN_COLOR "vm_page_family : %s, struct size = %u\n" RESET_COLOR,
+        printf(GREEN_COLOR "vm_page_family : %s, struct size = %lu\n" RESET_COLOR,
                vm_page_family_curr->struct_name,
                vm_page_family_curr->struct_size);
         i = 0;
@@ -517,7 +517,7 @@ void mm_print_memory_usage(char *struct_name)
     }
     ITER_VPAGE_FAMILIES_END(first_families_vpage, vm_page_family_curr);
 
-    printf(MAGENTA_COLOR "# Of VM Pages in Use : %u (%lu Bytes)\n" RESET_COLOR,
+    printf(MAGENTA_COLOR "# Of VM Pages in Use : %lu (%lu Bytes)\n" RESET_COLOR,
            cumulative_vm_pages_claimed_from_kernel,
            VIRTUAL_PAGE_SIZE * cumulative_vm_pages_claimed_from_kernel);
 
