@@ -333,10 +333,12 @@ static void mgr_free_allocated_data_block(meta_block_t *allocated_block_ptr){
     }
 
     if(allocated_block_ptr->next!=NULL && allocated_block_ptr->next->is_free==MGR_TRUE){
+        heap_remove(&vpage->page_family->heap_head,allocated_block_ptr->next);
         mgr_merge_free_block(allocated_block_ptr,allocated_block_ptr->next);
         priority_queue_block = allocated_block_ptr;
     }
     if (allocated_block_ptr->prev != NULL && allocated_block_ptr->prev->is_free == MGR_TRUE){
+        heap_remove(&vpage->page_family->heap_head, allocated_block_ptr->prev);
         mgr_merge_free_block(allocated_block_ptr->prev,allocated_block_ptr);
         priority_queue_block = allocated_block_ptr->prev;
     }
