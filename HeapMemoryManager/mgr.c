@@ -388,7 +388,7 @@ void mm_print_vm_page_details(vpage_t *vm_page)
         printf("\t\t\t%-14p Block %-3u %s  block_size = %-6u  "
                "offset = %-6u  prev = %-14p  next = %p\n",
                curr+1,          // TODO: revert
-               j++, curr->is_free == MGR_TRUE ? "FREED" : "ALLOCATED",
+               j++, curr->is_free == MGR_TRUE ? "F R E E D" : "ALLOCATED",
                curr->data_block_size, curr->offset,
                curr->prev ? curr->prev+1 : curr->prev,
                curr->next ? curr->next+1 : curr->next);
@@ -447,7 +447,7 @@ void mm_print_block_usage()
                     if (block_meta_data_curr->next == NULL)
                     {
                         char *first = (char *)(block_meta_data_curr + 1) + block_meta_data_curr->data_block_size;
-                        char *second = (char *)((char *)vm_page_curr + VIRTUAL_PAGE_SIZE);
+                        char *second = (char *)((char *)vm_page_curr + vm_page_curr->count*VIRTUAL_PAGE_SIZE);
 
                         total_hard_fragmented_memory += ((int)((unsigned long)second - (unsigned long)first));
                     }
