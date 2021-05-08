@@ -24,5 +24,6 @@ vpage_family_t* mgr_lookup_page_family(char* struct_name);
 void mm_print_memory_usage(char *struct_name);
 void mm_print_registered_page_families();
 void mm_print_block_usage();
+void mm_print_total_fragmented_size();
 
 #endif

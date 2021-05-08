@@ -394,6 +394,8 @@ void mm_print_block_usage()
     size_t total_block_count, free_block_count,
         occupied_block_count;
     size_t application_memory_usage;
+    size_t total_soft_fragmented_memory;
+    size_t total_hard_fragmented_memory;
 
     ITER_VPAGE_FAMILIES_BEGIN(first_families_vpage, vm_page_family_curr)
     {
@@ -402,6 +404,8 @@ void mm_print_block_usage()
         free_block_count = 0;
         application_memory_usage = 0;
         occupied_block_count = 0;
+        total_soft_fragmented_memory = 0;
+        total_hard_fragmented_memory = 0;
         ITER_VPAGE_BEGIN(vm_page_family_curr, vm_page_curr)
         {
 
@@ -423,9 +427,27 @@ void mm_print_block_usage()
                 if (block_meta_data_curr->is_free == MGR_TRUE)
                 {
                     free_block_count++;
+                    if(block_meta_data_curr->data_block_size < vm_page_curr->page_family->struct_size){
+                        total_soft_fragmented_memory += block_meta_data_curr->data_block_size;
+                    }
                 }
                 else
                 {
+                    if (block_meta_data_curr->next == NULL)
+                    {
+                        char *first = (char *)(block_meta_data_curr + 1) + block_meta_data_curr->data_block_size;
+                        char *second = (char *)((char *)vm_page_curr + VIRTUAL_PAGE_SIZE);
+
+                        total_hard_fragmented_memory += ((int)((unsigned long)second - (unsigned long)first));
+                    }
+                    else
+                    {
+                        meta_block_t *next_meta_block = NEXT_META_BLOCK_BY_SIZE(block_meta_data_curr);
+                        int hard_fragmented_size = (int)((unsigned long)block_meta_data_curr->next - (unsigned long)next_meta_block);
+
+                        total_hard_fragmented_memory += hard_fragmented_size;
+                    }
+
                     application_memory_usage +=
                         block_meta_data_curr->data_block_size +
                         sizeof(meta_block_t);
@@ -436,9 +458,9 @@ void mm_print_block_usage()
         }
         ITER_VPAGE_END(vm_page_family_curr, vm_page_curr);
 
-        printf("%-20s   TBC : %-4u    FBC : %-4u    OBC : %-4u AppMemUsage : %u\n",
+        printf("%-20s   TBC : %-4u    FBC : %-4u    OBC : %-4u    SOFT_FRAG : %-4u    HARD_FRAG : %-4u AppMemUsage : %u\n",
                vm_page_family_curr->struct_name, total_block_count,
-               free_block_count, occupied_block_count, application_memory_usage);
+               free_block_count, occupied_block_count, total_soft_fragmented_memory, total_hard_fragmented_memory, application_memory_usage);
     }
     ITER_VPAGE_FAMILIES_END(first_families_vpage, vm_page_family_curr);
 }
@@ -492,4 +514,8 @@ void mm_print_memory_usage(char *struct_name)
 
     printf("Total Memory being used by Memory Manager = %lu Bytes\n",
            cumulative_vm_pages_claimed_from_kernel * VIRTUAL_PAGE_SIZE);
+}
+
+void mm_print_total_fragmented_size(){
+
 }
