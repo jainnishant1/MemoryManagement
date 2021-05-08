@@ -1,13 +1,13 @@
 IDIR=include
 CC=gcc
-CFLAGS=
+CFLAGS=-lrt -lpthread
 
 ODIR=obj
 
-DEPS = mgr.h heap.h memmgr.h 
+DEPS = mgr.h heap.h memmgr.h cli.h
 # DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-OBJ = mgr.o heap.o test.o
+OBJ = mgr.o heap.o test.o cli.o
 # OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 %.o: %.c $(DEPS)

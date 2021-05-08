@@ -374,11 +374,11 @@ void mm_print_vm_page_details(vpage_t *vm_page)
 
         printf("\t\t\t%-14p Block %-3u %s  block_size = %-6u  "
                "offset = %-6u  prev = %-14p  next = %p\n",
-               curr,
+               curr+1,          // TODO: revert
                j++, curr->is_free == MGR_TRUE ? "FREED" : "ALLOCATED",
                curr->data_block_size, curr->offset,
-               curr->prev,
-               curr->next);
+               curr->prev ? curr->prev+1 : curr->prev,
+               curr->next ? curr->next+1 : curr->next);
     }
     ITER_VPAGE_META_BLOCKS_END(vm_page, curr);
 }

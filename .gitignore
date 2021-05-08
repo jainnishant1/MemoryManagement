@@ -6,3 +6,4 @@ test.o
 test
 HeapMemoryManager/priority_queue.c
 HeapMemoryManager/test.c
+HeapMemoryManager/test2.c
